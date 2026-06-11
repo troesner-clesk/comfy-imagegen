@@ -12,11 +12,7 @@ Ships in two flavours, same engine:
 
 ## Why
 
-ComfyUI is genuinely powerful, but its node editor and API aren't what you want when you
-just need a picture — and they're a non-starter for anyone around you who doesn't live in a
-terminal. ImageGen Studio is a deliberately thin layer on top: it keeps all the power running
-locally underneath and exposes exactly one thing — *describe it, get it*. The goal is to make
-local image generation usable by people who shouldn't have to learn a node graph to use it.
+The goal is to make local image generation usable by people who shouldn't have to learn a node graph to use it.
 
 ## Features
 
