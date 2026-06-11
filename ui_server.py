@@ -115,7 +115,7 @@ button.go:disabled{opacity:.5;cursor:default}
  <div class=adv id=advtoggle><span>&#9881;</span> Options <span class=chev>&#9662;</span></div>
  <div class=advbox id=advbox>
   <label>Quality (steps)<input type=number id=steps value=30 min=8 max=60></label>
-  <label>Avoid<input type=text id=neg value="" placeholder="optional"></label>
+  <label>Negative prompt (avoid)<input type=text id=neg value="" placeholder="e.g. blurry, text, extra fingers"></label>
  </div>
 </div>
 <div class=bar id=bar><i id=barfill></i></div>
