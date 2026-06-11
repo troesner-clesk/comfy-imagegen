@@ -31,60 +31,54 @@ FORMATS = {
 
 
 def resolve_size(fmt, width, height):
-    """Return (w, h). For 'custom', snap inputs to a multiple of 8 within a sane range."""
+    """Return (w, h). For 'custom', snap inputs to a multiple of 8 (a ComfyUI requirement)."""
     if fmt == "custom":
         def snap(v, d):
             try:
                 v = int(v)
             except (TypeError, ValueError):
                 return d
-            v = max(256, min(2048, v))
+            v = max(64, v)
             return v - (v % 8)
         return snap(width, 1024), snap(height, 1024)
     return FORMATS.get(fmt, FORMATS["square"])
+
 
 PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>ImageGen Studio</title>
 <style>
-:root{--bg:#0e0f13;--panel:#16181f;--line:#262a35;--ink:#e8eaf0;--mut:#8a90a2;--accent:#00d4aa}
+:root{--bg:#0e0f13;--panel:#16181f;--line:#2a2f3a;--ink:#e8eaf0;--mut:#9099ad;--accent:#00d4aa}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-.wrap{max-width:880px;margin:0 auto;padding:32px 20px 80px}
+.wrap{max-width:760px;margin:0 auto;padding:32px 20px 80px}
 h1{font-size:22px;font-weight:650;letter-spacing:-.01em;margin:0 0 4px}
 .sub{color:var(--mut);font-size:14px;margin:0 0 24px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px}
-textarea{width:100%;min-height:88px;resize:vertical;background:#0b0c10;color:var(--ink);
- border:1px solid var(--line);border-radius:12px;padding:14px;font:inherit;outline:none}
-textarea:focus{border-color:var(--accent)}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
-select,button{font:inherit;border-radius:10px;border:1px solid var(--line);padding:10px 14px}
-select{background:#0b0c10;color:var(--ink)}
-button.go{margin-left:auto;background:var(--accent);color:#04211b;border:none;font-weight:650;
- padding:12px 22px;border-radius:12px;cursor:pointer}
-button.go:disabled{opacity:.5;cursor:default}
-.adv{display:inline-flex;align-items:center;gap:7px;margin-top:14px;color:var(--mut);font-size:13px;
- cursor:pointer;user-select:none;padding:8px 13px;border:1px solid var(--line);border-radius:10px;
- background:#0b0c10;transition:border-color .15s,color .15s,background .15s}
-.adv:hover{border-color:var(--accent);color:var(--ink)}
-.adv.open{border-color:var(--accent);color:var(--ink);background:#0d1714}
-.adv .chev{transition:transform .2s}
-.adv.open .chev{transform:rotate(180deg)}
-.advbox{display:none;margin-top:10px;gap:14px;flex-wrap:wrap}
-.advbox.open{display:flex}
-.advbox label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
-.advbox input{background:#0b0c10;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;width:120px}
-.custombox{display:none;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px}
-.custombox.open{display:flex}
-.custombox label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
-.custombox input{background:#0b0c10;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;width:96px}
-.custombox .x{color:var(--mut);padding-bottom:9px}
-.custombox .hint{color:var(--mut);font-size:12px;padding-bottom:9px}
-.bar{height:8px;background:#0b0c10;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:10px 0;display:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.field{margin-top:18px}
+.field:first-child{margin-top:0}
+.lbl{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.lbl small{font-weight:400;color:var(--mut)}
+textarea,input[type=text],input[type=number]{width:100%;background:#0b0c10;color:var(--ink);border:1px solid var(--line);
+ border-radius:10px;padding:12px;font:inherit;outline:none}
+textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+#prompt{min-height:92px;resize:vertical}
+#neg{min-height:48px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+select{width:100%;background:#0b0c10;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit}
+.custom{display:none;gap:8px;align-items:flex-end;margin-top:10px}
+.custom.on{display:flex}
+.custom input{width:90px}
+.custom .x{color:var(--mut);padding-bottom:9px}
+.go{width:100%;margin-top:22px;background:var(--accent);color:#04211b;border:none;font:inherit;font-weight:700;
+ font-size:16px;padding:14px;border-radius:12px;cursor:pointer}
+.go:disabled{opacity:.5;cursor:default}
+.bar{height:8px;background:#0b0c10;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:18px 0 0;display:none}
 .bar.on{display:block}
 .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
-#status{margin:22px 0 8px;color:var(--mut);min-height:22px}
-.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:14px}
+#status{margin:14px 0 0;color:var(--mut);min-height:22px;font-size:14px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:18px}
 .gallery a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#000}
 .gallery img{width:100%;display:block}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);
@@ -94,30 +88,43 @@ button.go:disabled{opacity:.5;cursor:default}
 <h1>ImageGen Studio</h1>
 <p class=sub>Describe your image, hit Create. Runs locally on your machine.</p>
 <div class=card>
- <textarea id=prompt placeholder="e.g. a red fox in a snowy forest, cinematic photo, soft light"></textarea>
- <div class=row>
-  <select id=format>
-   <option value=square>Square &middot; 1024&times;1024</option>
-   <option value=portrait>Portrait &middot; 832&times;1216</option>
-   <option value=landscape>Landscape &middot; 1216&times;832</option>
-   <option value=tall>Tall &middot; 768&times;1344</option>
-   <option value=wide>Wide &middot; 1344&times;768</option>
-   <option value=custom>Custom&hellip;</option>
-  </select>
-  <button class=go id=go>Create</button>
+
+ <div class=field>
+  <label class=lbl for=prompt>What should be in the image?</label>
+  <textarea id=prompt placeholder="e.g. a red fox in a snowy forest, cinematic photo, soft light"></textarea>
  </div>
- <div class=custombox id=custombox>
-  <label>Width<input type=number id=cw value=1024 min=256 max=2048 step=8></label>
-  <span class=x>&times;</span>
-  <label>Height<input type=number id=ch value=1024 min=256 max=2048 step=8></label>
-  <span class=hint>px &middot; snapped to multiples of 8</span>
+
+ <div class=field>
+  <label class=lbl for=neg>What should <u>not</u> be in the image? <small>— negative prompt, optional</small></label>
+  <textarea id=neg placeholder="e.g. blurry, text, watermark, distorted hands"></textarea>
  </div>
- <div class=adv id=advtoggle><span>&#9881;</span> Options <span class=chev>&#9662;</span></div>
- <div class=advbox id=advbox>
-  <label>Quality (steps)<input type=number id=steps value=30 min=8 max=60></label>
-  <label>Negative prompt (avoid)<input type=text id=neg value="" placeholder="e.g. blurry, text, extra fingers"></label>
+
+ <div class=grid2>
+  <div>
+   <label class=lbl for=format>Format</label>
+   <select id=format>
+    <option value=square>Square · 1024×1024</option>
+    <option value=portrait>Portrait · 832×1216</option>
+    <option value=landscape>Landscape · 1216×832</option>
+    <option value=tall>Tall · 768×1344</option>
+    <option value=wide>Wide · 1344×768</option>
+    <option value=custom>Custom size …</option>
+   </select>
+   <div class=custom id=custom>
+    <label>Width<br><input type=number id=cw value=1024 min=64 step=8></label>
+    <span class=x>×</span>
+    <label>Height<br><input type=number id=ch value=1024 min=64 step=8></label>
+   </div>
+  </div>
+  <div>
+   <label class=lbl for=steps>Quality (steps) <small>— more = better &amp; slower</small></label>
+   <input type=number id=steps value=30 min=1 step=1>
+  </div>
  </div>
+
+ <button class=go id=go>Create image</button>
 </div>
+
 <div class=bar id=bar><i id=barfill></i></div>
 <div id=status></div>
 <div class=gallery id=gallery></div>
@@ -125,14 +132,14 @@ button.go:disabled{opacity:.5;cursor:default}
 <script>
 const $=s=>document.querySelector(s);
 const go=$('#go'),status=$('#status'),gallery=$('#gallery'),bar=$('#bar'),barfill=$('#barfill');
-const fmt=$('#format'),custombox=$('#custombox');
+const fmt=$('#format'),custom=$('#custom');
 const WSPORT=%%WSPORT%%;
-$('#advtoggle').onclick=function(){this.classList.toggle('open');$('#advbox').classList.toggle('open')};
-fmt.onchange=()=>custombox.classList.toggle('open',fmt.value==='custom');
+
+fmt.onchange=()=>custom.classList.toggle('on',fmt.value==='custom');
 $('#prompt').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter')run()});
 go.onclick=run;
 
-// Unique id for this session + live connection to ComfyUI for progress
+// Live progress from ComfyUI
 const clientId='studio-'+Math.random().toString(36).slice(2);
 let ws;
 function connectWs(){
@@ -154,12 +161,14 @@ connectWs();
 async function run(){
  const prompt=$('#prompt').value.trim();
  if(!prompt){$('#prompt').focus();return}
+ const steps=Math.max(1,parseInt($('#steps').value)||30);
  go.disabled=true;
  bar.classList.remove('on');barfill.style.width='0';
  status.innerHTML='<span class=spin></span>Rendering &mdash; starting';
  try{
   const r=await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({prompt,format:fmt.value,width:+$('#cw').value,height:+$('#ch').value,steps:+$('#steps').value,neg:$('#neg').value,clientId})});
+   body:JSON.stringify({prompt,neg:$('#neg').value,format:fmt.value,
+    width:+$('#cw').value,height:+$('#ch').value,steps,clientId})});
   const d=await r.json();
   bar.classList.remove('on');
   if(!r.ok||d.error){status.textContent='Error: '+(d.error||r.status);go.disabled=false;return}
@@ -178,7 +187,7 @@ def generate(prompt, fmt, width, height, steps, neg, client_id):
     seed = random.randint(0, 2**32 - 1)
     neg = neg or "lowres, bad anatomy, worst quality, low quality, blurry, watermark, text"
     ckpt = pick_checkpoint()
-    wf = build_txt2img(ckpt, prompt, neg, w, h, int(steps), 5.5, seed, "dpmpp_2m", "karras", 1)
+    wf = build_txt2img(ckpt, prompt, neg, w, h, max(1, int(steps)), 5.5, seed, "dpmpp_2m", "karras", 1)
     pid = api("/prompt", {"prompt": wf, "client_id": client_id or f"ui-{seed}"})["prompt_id"]
     while True:
         hist = api(f"/history/{pid}")
