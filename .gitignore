@@ -1,0 +1,21 @@
+# generated images
+output/
+*.png
+!docs/screenshot.png
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# models / weights (never commit these)
+*.safetensors
+*.ckpt
+*.pt
+
+# os / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
