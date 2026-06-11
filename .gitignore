@@ -1,7 +1,7 @@
 # generated images
 output/
 *.png
-!docs/screenshot.png
+!docs/*.png
 
 # python
 __pycache__/

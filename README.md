@@ -10,6 +10,10 @@ Ships in two flavours, same engine:
 
 ![ImageGen Studio](docs/screenshot.png)
 
+<sub>Example output — *"a small friendly robot standing in a green meadow, cinematic photo"* (Juggernaut XL):</sub>
+
+![Example output](docs/example.png)
+
 ## Why
 
 The goal is to make local image generation usable by people who shouldn't have to learn a node graph to use it.

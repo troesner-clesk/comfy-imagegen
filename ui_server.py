@@ -21,7 +21,27 @@ from imagegen import api, pick_checkpoint, build_txt2img, strip_metadata, HOST, 
 PORT = int(os.environ.get("IMAGEGEN_UI_PORT", "7866"))
 COMFY_WS_PORT = urllib.parse.urlsplit(HOST).port or 8188
 
-FORMATS = {"square": (1024, 1024), "portrait": (832, 1216), "landscape": (1216, 832)}
+FORMATS = {
+    "square": (1024, 1024),
+    "portrait": (832, 1216),
+    "landscape": (1216, 832),
+    "tall": (768, 1344),
+    "wide": (1344, 768),
+}
+
+
+def resolve_size(fmt, width, height):
+    """Return (w, h). For 'custom', snap inputs to a multiple of 8 within a sane range."""
+    if fmt == "custom":
+        def snap(v, d):
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                return d
+            v = max(256, min(2048, v))
+            return v - (v % 8)
+        return snap(width, 1024), snap(height, 1024)
+    return FORMATS.get(fmt, FORMATS["square"])
 
 PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -43,11 +63,23 @@ select{background:#0b0c10;color:var(--ink)}
 button.go{margin-left:auto;background:var(--accent);color:#04211b;border:none;font-weight:650;
  padding:12px 22px;border-radius:12px;cursor:pointer}
 button.go:disabled{opacity:.5;cursor:default}
-.adv{margin-top:10px;color:var(--mut);font-size:13px;cursor:pointer;user-select:none}
+.adv{display:inline-flex;align-items:center;gap:7px;margin-top:14px;color:var(--mut);font-size:13px;
+ cursor:pointer;user-select:none;padding:8px 13px;border:1px solid var(--line);border-radius:10px;
+ background:#0b0c10;transition:border-color .15s,color .15s,background .15s}
+.adv:hover{border-color:var(--accent);color:var(--ink)}
+.adv.open{border-color:var(--accent);color:var(--ink);background:#0d1714}
+.adv .chev{transition:transform .2s}
+.adv.open .chev{transform:rotate(180deg)}
 .advbox{display:none;margin-top:10px;gap:14px;flex-wrap:wrap}
 .advbox.open{display:flex}
 .advbox label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
 .advbox input{background:#0b0c10;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;width:120px}
+.custombox{display:none;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px}
+.custombox.open{display:flex}
+.custombox label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+.custombox input{background:#0b0c10;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;width:96px}
+.custombox .x{color:var(--mut);padding-bottom:9px}
+.custombox .hint{color:var(--mut);font-size:12px;padding-bottom:9px}
 .bar{height:8px;background:#0b0c10;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:10px 0;display:none}
 .bar.on{display:block}
 .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
@@ -65,13 +97,22 @@ button.go:disabled{opacity:.5;cursor:default}
  <textarea id=prompt placeholder="e.g. a red fox in a snowy forest, cinematic photo, soft light"></textarea>
  <div class=row>
   <select id=format>
-   <option value=square>Square</option>
-   <option value=portrait>Portrait</option>
-   <option value=landscape>Landscape</option>
+   <option value=square>Square &middot; 1024&times;1024</option>
+   <option value=portrait>Portrait &middot; 832&times;1216</option>
+   <option value=landscape>Landscape &middot; 1216&times;832</option>
+   <option value=tall>Tall &middot; 768&times;1344</option>
+   <option value=wide>Wide &middot; 1344&times;768</option>
+   <option value=custom>Custom&hellip;</option>
   </select>
   <button class=go id=go>Create</button>
  </div>
- <div class=adv id=advtoggle>&#9881; Options</div>
+ <div class=custombox id=custombox>
+  <label>Width<input type=number id=cw value=1024 min=256 max=2048 step=8></label>
+  <span class=x>&times;</span>
+  <label>Height<input type=number id=ch value=1024 min=256 max=2048 step=8></label>
+  <span class=hint>px &middot; snapped to multiples of 8</span>
+ </div>
+ <div class=adv id=advtoggle><span>&#9881;</span> Options <span class=chev>&#9662;</span></div>
  <div class=advbox id=advbox>
   <label>Quality (steps)<input type=number id=steps value=30 min=8 max=60></label>
   <label>Avoid<input type=text id=neg value="" placeholder="optional"></label>
@@ -84,8 +125,10 @@ button.go:disabled{opacity:.5;cursor:default}
 <script>
 const $=s=>document.querySelector(s);
 const go=$('#go'),status=$('#status'),gallery=$('#gallery'),bar=$('#bar'),barfill=$('#barfill');
+const fmt=$('#format'),custombox=$('#custombox');
 const WSPORT=%%WSPORT%%;
-$('#advtoggle').onclick=()=>$('#advbox').classList.toggle('open');
+$('#advtoggle').onclick=function(){this.classList.toggle('open');$('#advbox').classList.toggle('open')};
+fmt.onchange=()=>custombox.classList.toggle('open',fmt.value==='custom');
 $('#prompt').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter')run()});
 go.onclick=run;
 
@@ -116,7 +159,7 @@ async function run(){
  status.innerHTML='<span class=spin></span>Rendering &mdash; starting';
  try{
   const r=await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({prompt,format:$('#format').value,steps:+$('#steps').value,neg:$('#neg').value,clientId})});
+   body:JSON.stringify({prompt,format:fmt.value,width:+$('#cw').value,height:+$('#ch').value,steps:+$('#steps').value,neg:$('#neg').value,clientId})});
   const d=await r.json();
   bar.classList.remove('on');
   if(!r.ok||d.error){status.textContent='Error: '+(d.error||r.status);go.disabled=false;return}
@@ -130,8 +173,8 @@ async function run(){
 </script></body></html>"""
 
 
-def generate(prompt, fmt, steps, neg, client_id):
-    w, h = FORMATS.get(fmt, FORMATS["square"])
+def generate(prompt, fmt, width, height, steps, neg, client_id):
+    w, h = resolve_size(fmt, width, height)
     seed = random.randint(0, 2**32 - 1)
     neg = neg or "lowres, bad anatomy, worst quality, low quality, blurry, watermark, text"
     ckpt = pick_checkpoint()
@@ -202,6 +245,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, json.dumps({"error": "ComfyUI is not running. Start it and try again."}))
         try:
             dest = generate(prompt, req.get("format", "square"),
+                            req.get("width"), req.get("height"),
                             req.get("steps", 30), req.get("neg", ""), req.get("clientId", ""))
         except Exception as e:
             return self._send(500, json.dumps({"error": str(e)}))
