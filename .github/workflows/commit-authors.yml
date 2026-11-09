@@ -1,0 +1,59 @@
+# Keeps AI assistant identities out of the commit history, so only people
+# show up as authors and contributors. Fails when a commit is authored or
+# committed by Claude (Anthropic address or claude[bot]) or names it as
+# co-author.
+#
+# Cost: the job only starts when a push mentions one of these identities.
+# Ordinary pushes show up as skipped and use no Actions minutes. A manual
+# run (Actions > Commit authors > Run workflow) checks the whole history of
+# the selected branch.
+name: Commit authors
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits), 'anthropic.com') ||
+      contains(toJSON(github.event.commits), 'claude[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check authors, committers and co-author trailers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            # The commits of this push, straight from the event payload.
+            jq -c '.commits[] | {id, message,
+              author: "\(.author.name) <\(.author.email)>",
+              committer: "\(.committer.name) <\(.committer.email)>"}' "$GITHUB_EVENT_PATH"
+          else
+            # Manual run: the whole history of the selected branch.
+            gh api --paginate "repos/$GITHUB_REPOSITORY/commits?sha=$GITHUB_SHA&per_page=100" \
+              --jq '.[] | {id: .sha, message: .commit.message,
+                author: "\(.commit.author.name) <\(.commit.author.email)>",
+                committer: "\(.commit.committer.name) <\(.commit.committer.email)>"}'
+          fi > commits.json
+          jq -r '
+            def ai: ascii_downcase | test("@anthropic\\.com>|claude\\[bot\\]");
+            select((.author | ai) or (.committer | ai)
+              or (.message | split("\n") | any(test("^\\s*co-authored-by:"; "i") and ai)))
+            | "\(.id[0:7]) \(.message | split("\n")[0])  [author: \(.author), committer: \(.committer)]"
+          ' commits.json > hits.txt
+          checked=$(jq -s length commits.json)
+          if [ ! -s hits.txt ]; then
+            echo "$checked commit(s) checked, none by Claude."
+            exit 0
+          fi
+          cat hits.txt
+          echo "::error title=Commit authors::$(wc -l < hits.txt | tr -d ' ') of $checked commit(s) by Claude or with Claude as co-author. Rewrite author and committer to a person and drop the Co-authored-by trailer before the branch is merged. Once on the default branch, only a history rewrite removes Claude from the contributors."
+          exit 1
